@@ -1,8 +1,7 @@
 import json, firebase_admin
 
 from firebase_admin import firestore, credentials
-from enum import Enum
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, Query, HTTPException
 from pydantic import BaseModel
 from typing import Optional, Annotated
 
@@ -26,7 +25,50 @@ app = FastAPI()
 fileName = r'\data.json'
 fullPath = ROOT_DIR + fileName
 
+########################################################################################
 
+# Helper Methods:
+
+async def retrieveData(model: getModel):
+    
+    currData = await readData()
+    dataset = currData['Items']
+    
+    #Retrieving attributes from the inputed model
+    item_id = model.item_id
+    q = model.q
+
+    #Branches for filtering data:
+
+    #Filter based on item ID - Item ID is meant to be unique; hence possible O(1) situation
+    if (item_id):
+
+        if (dataset[-1]['item_id'] == item_id):
+            dataset = [dataset[-1]]
+
+        elif (dataset[0]['item_id'] == item_id):
+            dataset = [dataset[0]]
+
+        else:
+
+            for i in range(len(dataset)):
+
+                if (dataset[i]['item_id'] == item_id):
+                    dataset = [dataset[i]]
+                    break
+
+    #Filter based on q parameter
+    if (q):
+        try:
+            dataset = [val for val in dataset if ("q" in val) and (val['q'] == q)]
+
+        except:
+            raise HTTPException(status_code=404, detail="Item not found")
+
+    if (len(dataset) == 0):
+        raise HTTPException(status_code=404, detail="Item not found")
+        
+    return dataset
 
 async def readData():
     with (open(fullPath, 'r') as file):
@@ -41,24 +83,33 @@ async def writeData(data):
     currData = await readData()
     currData['Items'].append(data)
 
-    with (open(fullPath, 'w') as file):
-        json.dump(currData, file)
+    try:
+        with (open(fullPath, 'w') as file):
+            json.dump(currData, file)
+    
+    except:
+        raise HTTPException(status_code=500, detail="Internal Server Error")
 
 async def deleteData(data):
     currData = await readData()
+
     try:
-        currData['Items'].remove(data)
+        currData['Items'] = [val for val in currData['Items'] if val not in data]
+
         with (open(fullPath, 'w') as file):
             json.dump(currData, file)
 
-        return data
     except:
-        return "Error"
+        raise HTTPException(status_code=500, detail="Internal Server Error")
 
 async def toJSON(model: postModel):
     jsonString = model.model_dump_json()
     jsonObj = json.loads(jsonString)
     return jsonObj
+
+########################################################################################
+
+# Main API methods:
 
 #GET function for main default page
 @app.get('/')
@@ -68,27 +119,9 @@ async def mainPage():
 #GET function for default items page
 @app.get('/items', response_model=list[getModel])
 async def getItem(model: Annotated[getModel, Query()]):
-    
-    #Retrieving the data
-    currData = await readData()
-    selection = currData['Items']
 
-    #Retrieving attributes from the inputed model
-    item_id = model.item_id
-    q = model.q
-
-    #Branches for filtering data:
-
-    #Filter based on item ID
-    if (item_id):
-        selection = [val for val in selection if ("item_id" in val) and (val['item_id'] == item_id)]
-    
-    #Filter based on q parameter
-    if (q):
-        selection = [val for val in selection if ("q" in val) and (val['q'] == q)]
-
-    #Return filtered data
-    return selection
+    # Retrieving the data
+    return await retrieveData(model)
 
 #POST function for items page
 @app.post('/items')
@@ -104,27 +137,15 @@ async def postItem(model: postModel):
     return mainData
 
 
-#Under development - plan is to assign index variable to JSON entries.
+#Under development - problem being updating data
 @app.delete('/items', response_model=list[getModel])
 async def deleteItem(model: Annotated[getModel, Query()]):
-    #Retrieving the data
-    currData = await readData()
-    selection = currData['Items']
 
-    #Retrieving attributes from the inputed model
-    item_id = model.item_id
-    q = model.q
+    # Retrieving attributes from the inputed model
+    targets = await retrieveData(model)
 
-    #Branches for filtering data:
+    # Deleting targeted data
+    await deleteData(targets)
 
-    #Filter based on item ID
-    if (item_id):
-        selection = [val for val in selection if ("item_id" in val) and (val['item_id'] == item_id)]
     
-    #Filter based on q parameter
-    if (q):
-        selection = [val for val in selection if ("q" in val) and (val['q'] == q)]
-
-    currData['Items'].pop(-1)
-    
-    return (currData['Items'])
+    return (targets)

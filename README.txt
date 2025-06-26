@@ -8,3 +8,9 @@ libraries and capabilities.
 
 Currently capable of managing simple JSON data - next step later on is to get delete and put methods working
 and connect to Firebase cloud services for storing/retrieving data. 
+
+
+CHANGELOG - 6/26/25
+
+Developed DELETE method and did extensive refactoring and error checking for previous methods. Next plans are to 
+implement the PUT method and check for more possible refactoring possibilities.
