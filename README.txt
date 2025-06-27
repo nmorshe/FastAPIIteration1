@@ -14,3 +14,10 @@ CHANGELOG - 6/26/25
 
 Developed DELETE method and did extensive refactoring and error checking for previous methods. Next plans are to 
 implement the PUT method and check for more possible refactoring possibilities.
+
+CHANGELOG - 6/26/25 - 9:33 PM
+
+Implemented PUT method and added more error checking elements - next focus is implementing more error checking and
+trying to ensure better time complexity with functions and operations. Eventually planning on developing main.py to 
+be a function that calls the api via uvicorn. As for Firebase integration - may implement that in a separate clone 
+of this API.
