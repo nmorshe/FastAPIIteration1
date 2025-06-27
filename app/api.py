@@ -33,15 +33,22 @@ async def retrieveData(model: getModel):
     
     currData = await readData()
     dataset = currData['Items']
+
+    if (len(dataset) == 0):
+        raise HTTPException(status_code=404, detail="Item not found")
     
     #Retrieving attributes from the inputed model
     item_id = model.item_id
     q = model.q
 
+    originalSize = len(dataset)
+
     #Branches for filtering data:
 
     #Filter based on item ID - Item ID is meant to be unique; hence possible O(1) situation
     if (item_id):
+
+        # O(1) Handling
 
         if (dataset[-1]['item_id'] == item_id):
             dataset = [dataset[-1]]
@@ -56,6 +63,9 @@ async def retrieveData(model: getModel):
                 if (dataset[i]['item_id'] == item_id):
                     dataset = [dataset[i]]
                     break
+
+            if (len(dataset) == originalSize):
+                raise HTTPException(status_code=404, detail="Item not found")
 
     #Filter based on q parameter
     if (q):
@@ -99,8 +109,16 @@ async def deleteData(data):
         with (open(fullPath, 'w') as file):
             json.dump(currData, file)
 
-    except:
+    except IOError:
         raise HTTPException(status_code=500, detail="Internal Server Error")
+    
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Item not found")
+
+async def updateData(target, data):
+    await deleteData(target)
+    await writeData(data)
+
 
 async def toJSON(model: postModel):
     jsonString = model.model_dump_json()
@@ -147,5 +165,17 @@ async def deleteItem(model: Annotated[getModel, Query()]):
     # Deleting targeted data
     await deleteData(targets)
 
-    
     return (targets)
+
+@app.put('/items', response_model=list[getModel])
+async def updateItem(model: postModel):
+
+    val = getModel(item_id=model.item_id)
+    
+    target = await retrieveData(val)
+    newData = await toJSON(model)
+
+    await updateData(target, newData)
+
+    return target
+
