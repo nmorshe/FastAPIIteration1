@@ -21,3 +21,9 @@ Implemented PUT method and added more error checking elements - next focus is im
 trying to ensure better time complexity with functions and operations. Eventually planning on developing main.py to 
 be a function that calls the api via uvicorn. As for Firebase integration - may implement that in a separate clone 
 of this API.
+
+CHANGELOG - 6/27/25 - 10:53 PM
+
+Implemented bulk data posting as well as more refactoring of helper functions and REST functions to allow for less
+repetitive function calls to be made to improve performance. Later goal is to develop main.py to activate api directly
+via uvicorn.

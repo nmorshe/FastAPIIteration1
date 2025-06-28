@@ -1,12 +1,16 @@
+#Imports
+
 import json, firebase_admin
 
 from firebase_admin import firestore, credentials
 from fastapi import FastAPI, Query, HTTPException
 from pydantic import BaseModel
-from typing import Optional, Annotated
+from typing import Optional, Annotated, Union, List
 
 from ..data import ROOT_DIR
 from .. import FIREBASE_CRED
+
+########################################################################################
 
 cred = credentials.Certificate(FIREBASE_CRED)
 firebase_admin.initialize_app(cred)
@@ -29,9 +33,12 @@ fullPath = ROOT_DIR + fileName
 
 # Helper Methods:
 
-async def retrieveData(model: getModel):
-    
-    currData = await readData()
+
+"""
+Asynchronous function that parses data and returns a list of objects
+that matches the parameters of the given model. 
+"""
+async def retrieveData(currData, model: getModel):
     dataset = currData['Items']
 
     if (len(dataset) == 0):
@@ -85,13 +92,16 @@ async def readData():
         fileData = json.load(file)
         return fileData
     
-async def writeData(data):
-
+async def writeData(currData, data):
     if (data == None):
         return
+    
+    if (isinstance(data, dict)):
+        currData['Items'].append(data)
 
-    currData = await readData()
-    currData['Items'].append(data)
+    elif (isinstance(data, list)):
+        for val in data:
+            currData['Items'].append(val)
 
     try:
         with (open(fullPath, 'w') as file):
@@ -100,8 +110,7 @@ async def writeData(data):
     except:
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
-async def deleteData(data):
-    currData = await readData()
+async def deleteData(currData, data):
 
     try:
         currData['Items'] = [val for val in currData['Items'] if val not in data]
@@ -115,14 +124,19 @@ async def deleteData(data):
     except ValueError:
         raise HTTPException(status_code=404, detail="Item not found")
 
-async def updateData(target, data):
-    await deleteData(target)
-    await writeData(data)
+async def updateData(target, currData, data):
+    await deleteData(currData, target)
+    await writeData(currData, data)
 
 
-async def toJSON(model: postModel):
-    jsonString = model.model_dump_json()
-    jsonObj = json.loads(jsonString)
+async def toJSON(model: Union[postModel, List[postModel]]):
+
+    if (isinstance(model, postModel)):
+        jsonObj = json.loads(model.model_dump_json())
+
+    elif (isinstance(model, list)):
+        jsonObj = [json.loads(val.model_dump_json()) for val in model]
+
     return jsonObj
 
 ########################################################################################
@@ -138,32 +152,37 @@ async def mainPage():
 @app.get('/items', response_model=list[getModel])
 async def getItem(model: Annotated[getModel, Query()]):
 
+    currData = await readData()
+
     # Retrieving the data
-    return await retrieveData(model)
+    return await retrieveData(currData, model)
 
 #POST function for items page
 @app.post('/items')
-async def postItem(model: postModel):
+async def postItem(model: Union[postModel, List[postModel]]):
 
     #Convert inserted model data to JSON
     mainData = await toJSON(model)
 
+    currData = await readData()
+
     #Write data into file
-    await writeData(mainData)
+    await writeData(currData, mainData)
 
     #Return data
     return mainData
 
 
-#Under development - problem being updating data
 @app.delete('/items', response_model=list[getModel])
 async def deleteItem(model: Annotated[getModel, Query()]):
 
+    currData = await readData()
+
     # Retrieving attributes from the inputed model
-    targets = await retrieveData(model)
+    targets = await retrieveData(currData, model)
 
     # Deleting targeted data
-    await deleteData(targets)
+    await deleteData(currData, targets)
 
     return (targets)
 
@@ -172,10 +191,11 @@ async def updateItem(model: postModel):
 
     val = getModel(item_id=model.item_id)
     
-    target = await retrieveData(val)
+    currData = await readData()
+    target = await retrieveData(currData, val)
     newData = await toJSON(model)
 
-    await updateData(target, newData)
+    await updateData(target, currData, newData)
 
     return target
 
