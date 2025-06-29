@@ -27,3 +27,12 @@ CHANGELOG - 6/27/25 - 10:53 PM
 Implemented bulk data posting as well as more refactoring of helper functions and REST functions to allow for less
 repetitive function calls to be made to improve performance. Later goal is to develop main.py to activate api directly
 via uvicorn.
+
+CHANGELOG - 6/28/25 - 11:31 PM
+
+Implemented main.py to be able to call the API via uvicorn, allowing for api.py to be called from the top-level file.
+Also altered Firebase credentials to exist in api.py to handle build correctly. Overall the API appears to be finished, 
+but more changes may occur in the future.
+
+Am planning on using the design of this API to create multiple other APIs - next iteration will manage data through
+a connection to Firestore, while later iterations I may try to experiment with nhost.
