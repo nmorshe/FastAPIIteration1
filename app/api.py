@@ -1,16 +1,32 @@
 #Imports
 
-import json, firebase_admin
+import json, firebase_admin, os
 
 from firebase_admin import firestore, credentials
 from fastapi import FastAPI, Query, HTTPException
 from pydantic import BaseModel
 from typing import Optional, Annotated, Union, List
-
-from ..data import ROOT_DIR
-from .. import FIREBASE_CRED
+from dotenv import load_dotenv
 
 ########################################################################################
+
+from .data import ROOT_DIR
+
+load_dotenv()
+
+FIREBASE_CRED = {
+  "type": os.getenv('FASTAPI_FIREBASE_TYPE'),
+  "project_id": os.getenv('FASTAPI_FIREBASE_PROJECT_ID'),
+  "private_key_id": os.getenv('FASTAPI_FIREBASE_API_KEY_ID'),
+  "private_key": os.getenv('FASTAPI_FIREBASE_PRIVATE_API_KEY'),
+  "client_email": os.getenv('FASTAPI_FIREBASE_CLIENT_EMAIL'),
+  "client_id": os.getenv('FASTAPI_FIREBASE_CLIENT_ID'),
+  "auth_uri": os.getenv('FASTAPI_FIREBASE_AUTH_URI'),
+  "token_uri": os.getenv('FASTAPI_FIREBASE_TOKEN_URI'),
+  "auth_provider_x509_cert_url": os.getenv('FASTAPI_FIREBASE_AUTH_PROVIDER_CERT'),
+  "client_x509_cert_url": os.getenv('FASTAPI_FIREBASE_CLIENT_PROVIDER_CERT'),
+  "universe_domain": os.getenv('FASTAPI_FIREBASE_UNIVERSE_DOMAIN')
+}
 
 cred = credentials.Certificate(FIREBASE_CRED)
 firebase_admin.initialize_app(cred)
@@ -53,7 +69,7 @@ async def retrieveData(currData, model: getModel):
     #Branches for filtering data:
 
     #Filter based on item ID - Item ID is meant to be unique; hence possible O(1) situation
-    if (item_id):
+    if (item_id and (len(item_id) > 0)):
 
         # O(1) Handling
 
@@ -75,7 +91,7 @@ async def retrieveData(currData, model: getModel):
                 raise HTTPException(status_code=404, detail="Item not found")
 
     #Filter based on q parameter
-    if (q):
+    if (q and (len(q) > 0)):
         try:
             dataset = [val for val in dataset if ("q" in val) and (val['q'] == q)]
 
@@ -88,9 +104,13 @@ async def retrieveData(currData, model: getModel):
     return dataset
 
 async def readData():
-    with (open(fullPath, 'r') as file):
-        fileData = json.load(file)
-        return fileData
+    try:
+        with (open(fullPath, 'r') as file):
+            fileData = json.load(file)
+            return fileData
+    
+    except:
+        raise HTTPException(status_code=500, detail="Internal Service Error")
     
 async def writeData(currData, data):
     if (data == None):
@@ -110,11 +130,19 @@ async def writeData(currData, data):
     except:
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
-async def deleteData(currData, data):
+async def deleteData(currData, data: Union[getModel, List[getModel]]):
 
     try:
-        currData['Items'] = [val for val in currData['Items'] if val not in data]
 
+        if (isinstance(data, list) and (len(data) == 1)):
+            if (currData['Items'][0] == data):
+                del currData['Items'][0]
+
+            if (currData['Items'][-1] == data):
+                del currData['Items'][-1]
+
+        currData['Items'] = [val for val in currData['Items'] if val not in data]
+        
         with (open(fullPath, 'w') as file):
             json.dump(currData, file)
 
